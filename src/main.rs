@@ -16,17 +16,18 @@ use std::
     Stdout,
     Write,
   },
-};
-
-use termion::
-{
-  event::
+  os::
   {
-    Event,
-    Key,
-    MouseButton,
-    MouseEvent,
+    unix::
+    {
+      io::
+      {
+        AsRawFd,
+      },
+    },
   },
+  thread,
+  time,
 };
 
 mod yatui;
@@ -34,26 +35,35 @@ mod yatui;
 fn main()
 {
   let mut myTUI                         = yatui::Yatui::new();
-
-  let ( width, height, theDisplay )
-  = myTUI.newTermion
+  let ( width, height, myTerminal )
+  = myTUI.addTTYDisplay
     (
+      yatui::displays::Display_None,
       0,                                0,
-      io::stdin(),                      io::stdout(),
-      false,                            100_000_000,
+      0,                                0,
+      Box::new(io::stdin()),            Box::new(io::stdout()),
+      10_000_000
     );
-
   let theStatusBar
-  = myTUI.newStatusFrame
+  = myTUI.addStatusFrame
     (
       yatui::Frame_None,
       0,
-      "Hello".to_string(),
+      "?!".to_string(),
       '_',
+    );
+  let theImage
+  = myTUI.addPixelFrame
+    (
+      0,                                0,
+      0,                                0,
+      1.0,
+      yatui::Colour::Black,
+      yatui::PixelEncoding::None,       yatui::PixelEncoding::None,
     );
 
   let theEditor
-  = myTUI.newEditorFrame
+  = myTUI.addEditorFrame
     (
       yatui::Frame_None,
       0,                                0,
@@ -61,56 +71,55 @@ fn main()
       (
         vec!
         (
-          yatui::YWord::new ( "Hello ".to_string(),   yatui::YWord_None,            0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "World! ".to_string(),  yatui::YWord_None,            0, yatui::YColour::Blue,         yatui::YColour::Red ),
+          yatui::StyledToken::new ( "1".to_string(),   yatui::Style_None,            0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "2".to_string(),  yatui::Style_None,            0, yatui::Colour::Blue,               yatui::Colour::Red              ),
         ),
         vec!
         (
-          yatui::YWord::new ( "Hello ".to_string(),   yatui::YWord_None,            0, yatui::YColour::Default,      yatui::YColour::Default ),
-          yatui::YWord::new ( "World! ".to_string(),  yatui::YWord_None,            0, yatui::YColour::Default,      yatui::YColour::Default ),
+          yatui::StyledToken::new ( "3".to_string(),   yatui::Style_None,            0, yatui::Colour::Default,            yatui::Colour::Default          ),
+          yatui::StyledToken::new ( "4".to_string(),  yatui::Style_None,            0, yatui::Colour::Default,            yatui::Colour::Default          ),
         ),
         vec!
         (
-          yatui::YWord::new ( "Hello!".to_string(),   yatui::YWord_None,            0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello?".to_string(),   yatui::YWord_Italic,          0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello9".to_string(),   yatui::YWord_Underline,       0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello8".to_string(),   yatui::YWord_SlowBlink,       0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello7".to_string(),   yatui::YWord_RapidBlink,      0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello6".to_string(),   yatui::YWord_Inverse,         0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello5".to_string(),   yatui::YWord_Conceal,         0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello4".to_string(),   yatui::YWord_Fraktur,         0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello3".to_string(),   yatui::YWord_DoubleUnderline, 0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello2".to_string(),   yatui::YWord_Framed,          0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello1".to_string(),   yatui::YWord_Encircled,       0, yatui::YColour::Green,        yatui::YColour::Black ),
-          yatui::YWord::new ( "Hello0".to_string(),   yatui::YWord_Overlined,       0, yatui::YColour::Green,        yatui::YColour::Black ),
+          yatui::StyledToken::new ( "5".to_string(),   yatui::Style_None,            0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "6".to_string(),   yatui::Style_Italic,          0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "7".to_string(),   yatui::Style_Underline,       0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "8".to_string(),   yatui::Style_SlowBlink,       0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "9".to_string(),   yatui::Style_RapidBlink,      0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "0".to_string(),   yatui::Style_Inverse,         0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "a".to_string(),   yatui::Style_Conceal,         0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "b".to_string(),   yatui::Style_Fraktur,         0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "c".to_string(),   yatui::Style_DoubleUnderline, 0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "d".to_string(),   yatui::Style_Framed,          0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "e".to_string(),   yatui::Style_Encircled,       0, yatui::Colour::Green,              yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "f".to_string(),   yatui::Style_Overlined,       0, yatui::Colour::Green,              yatui::Colour::Black            ),
         ),
         vec!
         (
-          yatui::YWord::new ( "Hello ".to_string(),   yatui::YWord_None,            0, yatui::YColour::FaintGreen,   yatui::YColour::FaintBlue ),
-          yatui::YWord::new ( "World! ".to_string(),  yatui::YWord_None,            0, yatui::YColour::Green,        yatui::YColour::Blue ),
+          yatui::StyledToken::new ( "g".to_string(),   yatui::Style_None,            0, yatui::Colour::FaintGreen,         yatui::Colour::FaintBlue        ),
+          yatui::StyledToken::new ( "h".to_string(),  yatui::Style_None,            0, yatui::Colour::Green,              yatui::Colour::Blue             ),
         ),
         vec!
         (
-          yatui::YWord::new ( "How ".to_string(),     yatui::YWord_None,            0, yatui::YColour::LightGreen,   yatui::YColour::Yellow ),
-          yatui::YWord::new ( "ya ".to_string(),      yatui::YWord_None,            0, yatui::YColour::RGB( 255,     127, 0 ), yatui::YColour::Black ),
-          yatui::YWord::new ( "doin?".to_string(),    yatui::YWord_None,            0, yatui::YColour::Grey(12),     yatui::YColour::Grey(23) ),
+          yatui::StyledToken::new ( "i".to_string(),     yatui::Style_None,            0, yatui::Colour::LightGreen,         yatui::Colour::Yellow           ),
+          yatui::StyledToken::new ( "j".to_string(),      yatui::Style_None,            0, yatui::Colour::RGB( 255, 127, 0 ), yatui::Colour::Black            ),
+          yatui::StyledToken::new ( "k".to_string(),    yatui::Style_None,            0, yatui::Colour::Grey(12),           yatui::Colour::Grey(23)         ),
         ),
         vec!
         (
-          yatui::YWord::new ( "foo ".to_string(),     yatui::YWord_None,            0, yatui::YColour::Standard(4),  yatui::YColour::Cube( 1, 2, 3 ) ),
-          yatui::YWord::new ( "bar!".to_string(),     yatui::YWord_None,            0, yatui::YColour::Bright(5),    yatui::YColour::Bright(2) ),
+          yatui::StyledToken::new ( "l".to_string(),     yatui::Style_None,            0, yatui::Colour::Standard(4),        yatui::Colour::Cube( 1, 2, 3 )  ),
+          yatui::StyledToken::new ( "m".to_string(),     yatui::Style_None,            0, yatui::Colour::Bright(5),          yatui::Colour::Bright(2)        ),
         ),
       ),
       '.',
     );
-
   let theScreen
-  = myTUI.newParentFrame
+  = myTUI.addParentFrame
     (
-      yatui::Tiling::None,
+      yatui::frames::Tiling::Grid,
       vec!
       (
-        yatui::Yatui::newInstance
+        yatui::frames::Frame::newInstance
         (
           theEditor,
           0,                            0,
@@ -118,97 +127,100 @@ fn main()
           width - 0,                    height - 1,
           width - 0,                    height - 1,
           0,                            0,
-          0,                            0,
+          1,                            1,
         ),
-        yatui::Yatui::newInstance
+        yatui::frames::Frame::newInstance
         (
           theStatusBar,
           0,                            height as isize - 1,
           width,                        1,
           width,                        1,
           width,                        1,
-          0,                            0,
-          0,                            0,
+          0,                            1,
+          1,                            1,
         ),
       ),
-      vec!(),                           vec!(),
+      vec!(0, width as isize - 20),
+      vec!(0, height as isize - 1, height as isize),
+      vec!(1),
+      vec!(1, 1),
       0
     );
-
+  
+  println!("turnOnDisplay");
   myTUI.turnOnDisplay
   (
-    theDisplay,
+    myTerminal,
     theScreen,
-  );
+  ).unwrap();
 
   'mainLoop:
     loop
     {
-      for display                       in                                      &mut myTUI.listOfDisplays
+      for event                         in                                      &myTUI.recvChannel.try_recv()
       {
-        if let Some(ref mut refDisplay) = display
+        match event.event
         {
-          match refDisplay.display
+          yatui::event::EventType::Error(ref message) =>
           {
-            yatui::YDisplayType::Console(ref output) =>
+            println!("FAIL: {}", message);
+          },
+          yatui::event::EventType::Char(character) =>
+          {
+            if character == 'q'
             {
-            },
-            yatui::YDisplayType::Termion(ref display) =>
-            {
-              for event in &display.events.try_recv()
-              {
-                match event
-                {
-                  Event::Key(key)                                     =>
-                  {
-                    match key
-                    {
-                      Key::Esc                                        =>
-                      {
-                        break 'mainLoop;
-                      },
-                      Key::Char('f')                                  =>
-                      {
-                        let mut myStatusBar
-                                        =                                       yatui::Yatui::swapFrame ( &mut myTUI.listOfFrames, theStatusBar, None ).unwrap();
-                        if let Some(ref mut frame) = myStatusBar
-                        {
-                          if let yatui::YFrame::Status(ref mut status) = frame
-                          {
-                            status.text.push('A')
-                          }
-                        }
-                        yatui::Yatui::swapFrame ( &mut myTUI.listOfFrames, theStatusBar, myStatusBar ).unwrap();
-                        refDisplay.needRefresh
-                                        =                                       true;
-                      },
-                      _                                               =>
-                      {
-                      }
-                    }
-                  },
-                  Event::Mouse(MouseEvent::Press(button, posX, posY)) =>
-                  {
-                  },
-                  Event::Mouse(MouseEvent::Release(posX, posY))       =>
-                  {
-                  },
-                  Event::Mouse(MouseEvent::Hold(posX, posY))          =>
-                  {
-                  },
-                  Event::Unsupported(u)                               =>
-                  {
-                  },
-                }
-              }
+              break 'mainLoop;
             }
-          }
+            println!("CHAR: {}", character);
+          },
+          _ => {}
+        }
+      }
+      myTUI.render();
+    }
+
+  println!("turnOffDisplay");
+  myTUI.turnOffDisplay
+  (
+    myTerminal,
+  ).unwrap();
+  
+  println!("Wait for it………");
+  thread::sleep(time::Duration::from_millis(5000));
+  println!("turnOnDisplay again");
+  myTUI.turnOnDisplay
+  (
+    myTerminal,
+    theScreen,
+  ).unwrap();
+
+  'mainLoop1:
+    loop
+    {
+      for event                         in                                      &myTUI.recvChannel.try_recv()
+      {
+        match event.event
+        {
+          yatui::event::EventType::Error(ref message) =>
+          {
+            println!("FAIL: {}", message);
+          },
+          yatui::event::EventType::Char(character) =>
+          {
+            if character == 'q'
+            {
+              break 'mainLoop1;
+            }
+            println!("CHAR: {}", character);
+          },
+          _ => {}
         }
       }
       myTUI.render();
     }
   myTUI.turnOffDisplay
   (
-    theDisplay,
-  );
+    myTerminal,
+  ).unwrap();
+  println!("turnOffDisplay again");
 }

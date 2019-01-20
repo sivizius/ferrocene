@@ -4,14 +4,14 @@ description           = """
                           Ferrocene is a library to draw mutlitple frames of varoius type in several tiling modes on multiple displays.
                           It can be used e.g. to create similar interfaces to ncurses.
                         """
-version               = "0.1.0"
+version               = "0.1.1"
 authors               = [
                           "sivizius <sivizius@ohai.su>"
                         ]
 edition               = "2018"
 
 [dependencies]
-termion               = "1"
+libc                  = "0.2"
 unicode-segmentation  = "1.1.0"
 
 [profile.dev]
