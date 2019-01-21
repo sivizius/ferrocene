@@ -28,7 +28,7 @@ Available features are at the moment:
 ToDo-List
 ---------
 
-[] Qt
-[] Gtk
-[] X11
+-[ ] Qt
+-[ ] Gtk
+-[ ] X11
 
