@@ -1,12 +1,26 @@
 #[cfg(feature = "display-tty")]
 pub mod tty;
 
-use crate::*;
-use crate::frame::*;
-use crate::event::*;
+use crate::
+{
+  Flags,
+  event::
+  {
+    EventSender,
+  },
+  frame::
+  {
+    Frame,
+    FrameID,
+    Tiling,
+  },
+};
 
 #[cfg(feature = "display-tty")]
-use crate::display::tty::*;
+use crate::display::tty::
+{
+  TTYDisplay,
+};
 
 use std::
 {
@@ -35,10 +49,6 @@ use std::
     Arc,
     Mutex,
   },
-  thread::
-  {
-    JoinHandle,
-  },
   time::
   {
     Duration,
@@ -59,16 +69,22 @@ pub enum DisplayType
   TTY(TTYDisplay),
 }
 
-pub const Display_None:           Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0000;
-pub const Display_RealTime:       Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0001;
-
-pub const Display_NeedRefresh:    Flags =                                       0b0100_0000_0000_0000_0000_0000_0000_0000;
-pub const Display_NeedRemap:      Flags =                                       0b1000_0000_0000_0000_0000_0000_0000_0000;
-pub const Display_MaskRefresh:    Flags =                                       Display_NeedRefresh | Display_NeedRemap;
+bitflags!
+{
+  pub struct DisplayFlag: Flags
+  {
+    const None                          =                                       0b0000_0000_0000_0000_0000_0000_0000_0000;
+    const RealTime                      =                                       0b0000_0000_0000_0000_0000_0000_0000_0001;
+    //…
+    const NeedRefresh                   =                                       0b0100_0000_0000_0000_0000_0000_0000_0000;
+    const NeedRemap                     =                                       0b1000_0000_0000_0000_0000_0000_0000_0000;
+    const MaskRefresh                   =                                       DisplayFlag::NeedRefresh.bits | DisplayFlag::NeedRemap.bits;
+  }
+}
 
 pub struct Display
 {
-  pub flags:                            Flags,
+  pub flags:                            DisplayFlag,
   pub this:                             DisplayID,
   pub offsX:                            isize,
   pub offsY:                            isize,
@@ -76,7 +92,7 @@ pub struct Display
   pub sizeY:                            usize,
   pub cursorX:                          usize,
   pub cursorY:                          usize,
-  mapOfFrames:                          Arc<Mutex<Box<[FrameID]>>>,
+  mapOfFrames:                          Arc<Mutex<Option<Box<[FrameID]>>>>,
   pub mainFrame:                        FrameID,
   pub focusedFrame:                     Arc<Mutex<Box<FrameID>>>,
   pub lastRefresh:                      SystemTime,
@@ -141,19 +157,32 @@ impl Display
       let maxY:                   usize =                                       maxY as usize;
       let lenX:                   usize =                                       ( maxX - minX )  as usize;
       let lenY:                   usize =                                       ( maxY - minY )  as usize;
-      if ( self.flags & Display_NeedRemap ) != 0
+      if ( self.flags & DisplayFlag::NeedRemap ) != DisplayFlag::None           //do I have to remap the map of frames?
       {
-        if let Ok(mut mapOfFrames) = self.mapOfFrames.lock()
+        if let Ok(mut mapOfFrames) = self.mapOfFrames.lock()                    //can I access it?
         {
-          self.flags                    &=                                      !Display_NeedRemap;
+          //allocate new map of frames
+          let mut theMapOfFrames: Vec<FrameID>
+                                        =                                       Vec::with_capacity( ( self.sizeX * self.sizeY ) as usize );
+          theMapOfFrames.resize(( self.sizeX * self.sizeY ) as usize, 0);
+          let mut theMapOfFrames: Box<[FrameID]>
+                                        =                                       theMapOfFrames.into_boxed_slice();
+
+          //remap
           for y                         in                                      minY .. maxY
           {
             for x                       in                                      minX .. maxX
             {
-              mapOfFrames [ x + y * self.sizeX ]
+              theMapOfFrames [ x + y * self.sizeX ]
                                         =                                       drawFrame;
             }
           }
+
+          //do not have to remap, because I did
+          self.flags                    &=                                      !DisplayFlag::NeedRemap;
+
+          //replace old map of frames
+          *mapOfFrames                  =                                       Some(theMapOfFrames);
         }
       }
       match refFrame.as_mut().unwrap()
@@ -271,16 +300,32 @@ impl Display
       //wut
     }
   }
-  pub fn turnOn
+
+  pub fn changeTitle
   (
     &mut self,
     events:                             EventSender,
+    title:                              String,
   )
   {
     match self.display
     {
       #[cfg(feature = "display-tty")]
-      DisplayType::TTY(ref mut output)  => output.turnOn  ( events, self.this, self.sizeX, self.sizeY, self.mapOfFrames.clone(), self.focusedFrame.clone() ),
+      DisplayType::TTY(ref mut output)  => output.changeTitle ( events, self.this, title ),
+    }
+  }
+
+  pub fn turnOn
+  (
+    &mut self,
+    events:                             EventSender,
+    title:                              String,
+  )
+  {
+    match self.display
+    {
+      #[cfg(feature = "display-tty")]
+      DisplayType::TTY(ref mut output)  => output.turnOn      ( events, self.this, title, self.sizeX, self.sizeY, self.mapOfFrames.clone(), self.focusedFrame.clone() ),
     }
   }
 
@@ -293,7 +338,7 @@ impl Display
     match self.display
     {
       #[cfg(feature = "display-tty")]
-      DisplayType::TTY(ref mut output)  => output.turnOff ( &events, self.this ),
+      DisplayType::TTY(ref mut output)  => output.turnOff     ( &events, self.this ),
     }
   }
 }

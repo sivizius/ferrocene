@@ -1,26 +1,32 @@
-use crate::*;
+pub mod style;
+
+use crate::
+{
+  Flags,
+  frame::
+  {
+    style::
+    {
+      Colour,
+      StyledToken,
+    },
+  },
+};
 
 pub type FrameID                        =                                       usize;
 type GridBorder                         =                                       usize;
 
-pub const Frame_None:             Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0000;
-pub const Style_None:             Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0000;
-pub const Style_Italic:           Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0001;
-pub const Style_Underline:        Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0010;
-pub const Style_SlowBlink:        Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0100;
-pub const Style_RapidBlink:       Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_1000;
-pub const Style_Inverse:          Flags =                                       0b0000_0000_0000_0000_0000_0000_0001_0000;
-pub const Style_Conceal:          Flags =                                       0b0000_0000_0000_0000_0000_0000_0010_0000;
-pub const Style_CrossedOut:       Flags =                                       0b0000_0000_0000_0000_0000_0000_0100_0000;
-pub const Style_Fraktur:          Flags =                                       0b0000_0000_0000_0000_0000_0000_1000_0000;
-pub const Style_DoubleUnderline:  Flags =                                       0b0000_0000_0000_0000_0000_0001_0000_0000;
-pub const Style_Framed:           Flags =                                       0b0000_0000_0000_0000_0000_0010_0000_0000;
-pub const Style_Encircled:        Flags =                                       0b0000_0000_0000_0000_0000_0100_0000_0000;
-pub const Style_Overlined:        Flags =                                       0b0000_0000_0000_0000_0000_1000_0000_0000;
+bitflags!
+{
+  pub struct FrameFlag: Flags
+  {
+    const None                          =                                       0b0000_0000_0000_0000_0000_0000_0000_0000;
+  }
+}
 
 pub struct StatusFrame
 {
-  pub flags:                            Flags,
+  pub flags:                            FrameFlag,
   pub offs:                             isize,
   pub text:                             String,
   pub bgChar:                           char,
@@ -28,89 +34,16 @@ pub struct StatusFrame
 
 pub struct TextFrame
 {
-  pub flags:                            Flags,
+  pub flags:                            FrameFlag,
   pub offsX:                            isize,
   pub offsY:                            isize,
   pub lines:                            Vec<String>,
   pub bgChar:                           char,
 }
 
-pub enum Colour
-{
-  Default,
-  RGB       ( u8, u8, u8 ),             // ( r, g, b ): 0–255, 0–255, 0–255
-  Standard  ( u8 ),                     // console: 0–7
-  Bright    ( u8 ),                     // console: 0–7
-  Cube      ( u8, u8, u8 ),             // ( r, g, b ): 0–5, 0–5, 0–5
-  Grey      ( u8 ),                     // console: 0–23
-  Black,                                // #000000
-  Red,                                  // #ff0000
-  Green,                                // #00ff00
-  Brown,
-  Blue,                                 // #0000ff
-  Purple,                               // #ff00ff
-  Cyan,                                 // #00ffff
-  LightGrey,
-  DarkGrey,
-  LightRed,
-  LightGreen,
-  Yellow,                               // #ffff00
-  LightBlue,
-  LightPurple,
-  LightCyan,
-  White,                                // #ffffff
-  BrightBlack,
-  BrightRed,
-  BrightGreen,
-  BrightYellow,
-  BrightBlue,
-  BrightPurple,
-  BrightCyan,
-  BrightWhite,
-  FaintBlack,
-  FaintRed,
-  FaintGreen,
-  FaintYellow,
-  FaintBlue,
-  FaintPurple,
-  FaintCyan,
-  FaintWhite,
-}
-
-pub struct StyledToken
-{
-  pub word:                             String,
-  pub flags:                            Flags,
-  pub font:                             u8,
-  pub fgColour:                         Colour,
-  pub bgColour:                         Colour,
-}
-
-impl StyledToken
-{
-  pub fn new
-  (
-    word:                               String,
-    flags:                              Flags,
-    font:                               u8,
-    fgColour:                           Colour,
-    bgColour:                           Colour,
-  ) -> Self
-  {
-    Self
-    {
-      word:                             word,
-      flags:                            flags,
-      font:                             font,
-      fgColour:                         fgColour,
-      bgColour:                         bgColour,
-    }
-  }
-}
-
 pub struct EditorFrame
 {
-  pub flags:                            Flags,
+  pub flags:                            FrameFlag,
   pub offsX:                            isize,
   pub offsY:                            isize,
   pub lines:                            Vec<Vec<StyledToken>>,
@@ -196,7 +129,7 @@ impl Frame
 {
   pub fn newStatusFrame
   (
-    flags:                              Flags,
+    flags:                              FrameFlag,
     offs:                               isize,
     text:                               String,
     bgChar:                             char,
@@ -216,7 +149,7 @@ impl Frame
 
   pub fn newTextFrame
   (
-    flags:                              Flags,
+    flags:                              FrameFlag,
     offsX:                              isize,
     offsY:                              isize,
     lines:                              Vec<String>,
@@ -238,7 +171,7 @@ impl Frame
 
   pub fn newEditorFrame
   (
-    flags:                              Flags,
+    flags:                              FrameFlag,
     offsX:                              isize,
     offsY:                              isize,
     lines:                              Vec<Vec<StyledToken>>,

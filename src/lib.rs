@@ -1,14 +1,53 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
+
+#[macro_use]
+extern crate bitflags;
+
 pub mod display;
 pub mod frame;
 pub mod event;
 
 pub use crate::
 {
-  display::*,
-  frame::*,
-  event::*,
+  display::
+  {
+    Display,
+    DisplayFlag,
+    DisplayID,
+    DisplayType,
+    ReadableFd,
+    WriteableFd,
+  },
+  event::
+  {
+    Event,
+    EventReceiver,
+    EventSender,
+    EventType,
+    MouseButton,
+  },
+  frame::
+  {
+    EditorFrame,
+    Frame,
+    FrameID,
+    FrameFlag,
+    Instance,
+    LayerFrame,
+    ParentFrame,
+    PixelEncoding,
+    PixelFrame,
+    PlotFrame,
+    StatusFrame,
+    TextFrame,
+    Tiling,
+    style::
+    {
+      Colour,
+      StyledToken,
+    },
+  },
 };
 
 #[cfg(feature = "display-tty")]
@@ -74,7 +113,7 @@ impl Ferrocene
   pub fn addTTYDisplay
   (
     &mut self,
-    flags:                              Flags,
+    flags:                              DisplayFlag,
     offsX:                              isize,
     offsY:                              isize,
     cursorX:                            usize,
@@ -103,7 +142,7 @@ impl Ferrocene
   pub fn addStatusFrame
   (
     &mut self,
-    flags:                              Flags,
+    flags:                              FrameFlag,
     offs:                               isize,
     text:                               String,
     bgChar:                             char,
@@ -124,7 +163,7 @@ impl Ferrocene
   pub fn addTextFrame
   (
     &mut self,
-    flags:                              Flags,
+    flags:                              FrameFlag,
     offsX:                              isize,
     offsY:                              isize,
     lines:                              Vec<String>,
@@ -146,7 +185,7 @@ impl Ferrocene
   pub fn addEditorFrame
   (
     &mut self,
-    flags:                              Flags,
+    flags:                              FrameFlag,
     offsX:                              isize,
     offsY:                              isize,
     lines:                              Vec<Vec<StyledToken>>,
@@ -264,11 +303,24 @@ impl Ferrocene
     }
   }
 
+  pub fn setDisplayTitle
+  (
+    &mut self,
+    display:                            DisplayID,
+    title:                              String,
+  )
+  {
+    let events                          =                                       self.sendChannel.clone();
+    let refDisplay                      =                                       self.accessDisplay ( display ).unwrap();
+    refDisplay.changeTitle( events, title );
+  }
+
   pub fn turnOnDisplay
   (
     &mut self,
     display:                            DisplayID,
     frame:                              FrameID,
+    title:                              String,
   ) -> Result<FrameID, &'static str>
   {
     let events                          =                                       self.sendChannel.clone();
@@ -276,14 +328,14 @@ impl Ferrocene
     let mut fine: bool                  =                                       false;
     if let Ok(mut focusedFrame) = refDisplay.focusedFrame.lock()
     {
-      refDisplay.flags                  |=                                      Display_MaskRefresh;
+      refDisplay.flags                  |=                                      DisplayFlag::MaskRefresh;
       refDisplay.mainFrame              =                                       frame;
       **focusedFrame                    =                                       frame;
       fine                              =                                       true;
     }
     if fine
     {
-      refDisplay.turnOn(events);
+      refDisplay.turnOn(events, title);
       Ok(refDisplay.mainFrame)
     }
     else
@@ -315,10 +367,10 @@ impl Ferrocene
       let events                        =                                       self.sendChannel.clone();
       if let Some(ref mut refDisplay) = display
       {
-        if  ( refDisplay.flags & Display_MaskRefresh ) != 0
+        if  ( refDisplay.flags & DisplayFlag::MaskRefresh ) != DisplayFlag::None
         &&  ( refDisplay.lastRefresh.elapsed().unwrap() > refDisplay.nextRefresh )
         {
-          refDisplay.flags              &=                                      !Display_NeedRefresh;
+          refDisplay.flags              &=                                      !DisplayFlag::NeedRefresh;
           refDisplay.draw
           (
             &mut self.listOfFrames,

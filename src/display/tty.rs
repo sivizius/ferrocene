@@ -1,8 +1,35 @@
 use crate::
 {
-  frame::*,
-  event::*,
-  display::*,
+  display::
+  {
+    Display,
+    DisplayFlag,
+    DisplayID,
+    DisplayType,
+    ReadableFd,
+    WriteableFd,
+  },
+  event::
+  {
+    Event,
+    EventSender,
+    EventType,
+    MouseButton,
+  },
+  frame::
+  {
+    EditorFrame,
+    FrameID,
+    PixelFrame,
+    PlotFrame,
+    StatusFrame,
+    TextFrame,
+    style::
+    {
+      Colour,
+      Style,
+    },
+  },
 };
 
 use std::
@@ -24,7 +51,11 @@ use std::
     },
     Mutex,
   },
-  thread,
+  thread::
+  {
+    self,
+    JoinHandle,
+  },
   time::
   {
     Duration,
@@ -67,7 +98,7 @@ impl TTYDisplay
 {
   pub fn new
   (
-    flags:                              Flags,
+    flags:                              DisplayFlag,
     offsX:                              isize,
     offsY:                              isize,
     cursorX:                            usize,
@@ -88,15 +119,11 @@ impl TTYDisplay
       {
         let ( sizeX, sizeY, _, _ )
                                         =                                       Self::getTerminalSize ( &mut input, &mut output, &mut termios )?;
-        let mut mapOfFrames: Vec<FrameID>
-                                        =                                       Vec::with_capacity( ( sizeX * sizeY ) as usize );
-        mapOfFrames.resize(( sizeX * sizeY ) as usize, 0);
-        let mapOfFrames: Box<[FrameID]> =                                       mapOfFrames.into_boxed_slice();
         Ok
         (
           Display
           {
-            flags:                            flags | Display_NeedRefresh | Display_NeedRemap,
+            flags:                            flags | DisplayFlag::NeedRefresh | DisplayFlag::NeedRemap,
             this:                             0,
             offsX:                            offsX,
             offsY:                            offsY,
@@ -104,7 +131,7 @@ impl TTYDisplay
             sizeY:                            sizeY as usize,
             cursorX:                          cursorX,
             cursorY:                          cursorY,
-            mapOfFrames:                      Arc::new(Mutex::new(mapOfFrames)),
+            mapOfFrames:                      Arc::new(Mutex::new(None)),
             mainFrame:                        0,
             focusedFrame:                     Arc::new(Mutex::new(Box::new(0))),
             lastRefresh:                      SystemTime::now(),
@@ -153,7 +180,7 @@ impl TTYDisplay
           TTY_CSI,
         ).unwrap();
         let mut state: TTYState         =                                       TTYState::ExpectByte;
-        let mut mouseState              =                                       0;
+        let mut mouseState              =                                       MouseButton::None;
         let mut listOfParameters        =                                       vec!();
         let mut currentParameter        =                                       0;
         let mut returnValue: Option<Event>
@@ -233,14 +260,59 @@ impl TTYDisplay
     }
   }
 
+  pub fn changeTitle
+  (
+    &mut self,
+    events:                             EventSender,
+    display:                            DisplayID,
+    title:                              String,
+  )
+  {
+    let error
+    = write!
+      (
+        self.output,
+        "{}]0;{}\x07",
+        TTY_ESC,                        title,
+      );
+    if !error.is_ok()
+    {
+      events.send
+      (
+        Event::new
+        (
+          EventType::Error("cannot send to tty"),
+          display,                      0,
+          0,                            0,
+          MouseButton::None,
+        )
+      ).unwrap();
+    }
+    let error                           =                                       self.output.flush();
+    if !error.is_ok()
+    {
+      events.send
+      (
+        Event::new
+        (
+          EventType::Error("cannot flush to tty"),
+          display,                      0,
+          0,                            0,
+          MouseButton::None,
+        )
+      ).unwrap();
+    }
+  }
+
   pub fn turnOn
   (
     &mut self,
     events:                             EventSender,
     display:                            DisplayID,
+    title:                              String,
     sizeX:                              usize,
     sizeY:                              usize,
-    mapOfFrames:                        Arc<Mutex<Box<[FrameID]>>>,
+    mapOfFrames:                        Arc<Mutex<Option<Box<[FrameID]>>>>,
     focus:                              Arc<Mutex<Box<FrameID>>>,
   )
   {
@@ -252,12 +324,12 @@ impl TTYDisplay
       {
         events.send
         (
-          event::Event::new
+          Event::new
           (
             EventType::Error("cannot enter raw mode"),
             display,                    0,
             0,                          0,
-            0,
+            MouseButton::None,
           )
         ).unwrap();
       }
@@ -269,12 +341,12 @@ impl TTYDisplay
         {
           events.send
           (
-            event::Event::new
+            Event::new
             (
               EventType::Error("cannot make input non-blocking"),
               display,                  0,
               0,                        0,
-              0,
+              MouseButton::None,
             )
           ).unwrap();
         }
@@ -285,7 +357,7 @@ impl TTYDisplay
       (
         self.output,
         "{}]0;{}\x07{}{}J{}{};{}H{}?{}l{}?{}h{}?{}h",
-        TTY_ESC,                        "Hello World",
+        TTY_ESC,                        title,
         TTY_CSI,                        2,
         TTY_CSI,                        1,        1,
         TTY_CSI,                        25,
@@ -296,12 +368,12 @@ impl TTYDisplay
     {
       events.send
       (
-        event::Event::new
+        Event::new
         (
           EventType::Error("cannot send to tty"),
           display,                      0,
           0,                            0,
-          0,
+          MouseButton::None,
         )
       ).unwrap();
     }
@@ -310,12 +382,12 @@ impl TTYDisplay
     {
       events.send
       (
-        event::Event::new
+        Event::new
         (
           EventType::Error("cannot flush to tty"),
           display,                      0,
           0,                            0,
-          0
+          MouseButton::None,
         )
       ).unwrap();
     }
@@ -334,7 +406,7 @@ impl TTYDisplay
             {
               let mut input             =                                       input.by_ref().bytes();
               let mut state: TTYState   =                                       TTYState::ExpectByte;
-              let mut mouseState: Flags =                                       MouseButton_None;
+              let mut mouseState        =                                       MouseButton::None;
               let mut listOfParameters: Vec<usize>
                                         =                                       vec!();
               let mut currentParameter: usize
@@ -395,12 +467,12 @@ impl TTYDisplay
     {
       events.send
       (
-        event::Event::new
+        Event::new
         (
           EventType::Error("cannot send to tty"),
           display,                      0,
           0,                            0,
-          0,
+          MouseButton::None,
         )
       ).unwrap();
     }
@@ -409,12 +481,12 @@ impl TTYDisplay
     {
       events.send
       (
-        event::Event::new
+        Event::new
         (
           EventType::Error("cannot flush to tty"),
           display,                      0,
           0,                            0,
-          0,
+          MouseButton::None,
         )
       ).unwrap();
     }
@@ -437,12 +509,12 @@ impl TTYDisplay
         {
           events.send
           (
-            event::Event::new
+            Event::new
             (
               EventType::Error("cannot reset input to blocking"),
               display,                  0,
               0,                        0,
-              0,
+              MouseButton::None,
             )
           ).unwrap();
         }
@@ -451,12 +523,12 @@ impl TTYDisplay
       {
         events.send
         (
-          event::Event::new
+          Event::new
           (
             EventType::Error("cannot enter cooked mode"),
             display,                    0,
             0,                          0,
-            0,
+            MouseButton::None,
           )
         ).unwrap();
       }
@@ -475,12 +547,12 @@ impl TTYDisplay
     {
       events.send
       (
-        event::Event::new
+        Event::new
         (
           EventType::Error("cannot flush to tty"),
           display,                      0,
           0,                            0,
-          0
+          MouseButton::None,
         )
       ).unwrap();
     }
@@ -693,18 +765,18 @@ impl TTYDisplay
             //most of them will be ignored by most of the terminals :'(
             let mut style               =                                       "".to_string();
             if ( word.font > 0 ) && ( word.font < 10 )                          { style = format!("{};", word.font + 10 ) }
-            if ( word.flags & Style_Italic          ) == 1                      { style.push_str( "3;") }
-            if ( word.flags & Style_Underline       ) == 1                      { style.push_str( "4;") }
-            if ( word.flags & Style_SlowBlink       ) == 1                      { style.push_str( "5;") }
-            if ( word.flags & Style_RapidBlink      ) == 1                      { style.push_str( "6;") }
-            if ( word.flags & Style_Inverse         ) == 1                      { style.push_str( "7;") }
-            if ( word.flags & Style_Conceal         ) == 1                      { style.push_str( "8;") }
-            if ( word.flags & Style_CrossedOut      ) == 1                      { style.push_str( "9;") }
-            if ( word.flags & Style_Fraktur         ) == 1                      { style.push_str("20;") }
-            if ( word.flags & Style_DoubleUnderline ) == 1                      { style.push_str("21;") }
-            if ( word.flags & Style_Framed          ) == 1                      { style.push_str("51;") }
-            if ( word.flags & Style_Encircled       ) == 1                      { style.push_str("52;") }
-            if ( word.flags & Style_Overlined       ) == 1                      { style.push_str("53;") }
+            if ( word.flags & Style::Italic          ) != Style::None                     { style.push_str( "3;") }
+            if ( word.flags & Style::Underline       ) != Style::None           { style.push_str( "4;") }
+            if ( word.flags & Style::SlowBlink       ) != Style::None           { style.push_str( "5;") }
+            if ( word.flags & Style::RapidBlink      ) != Style::None           { style.push_str( "6;") }
+            if ( word.flags & Style::Inverse         ) != Style::None           { style.push_str( "7;") }
+            if ( word.flags & Style::Conceal         ) != Style::None           { style.push_str( "8;") }
+            if ( word.flags & Style::CrossedOut      ) != Style::None           { style.push_str( "9;") }
+            if ( word.flags & Style::Fraktur         ) != Style::None           { style.push_str("20;") }
+            if ( word.flags & Style::DoubleUnderline ) != Style::None           { style.push_str("21;") }
+            if ( word.flags & Style::Framed          ) != Style::None           { style.push_str("51;") }
+            if ( word.flags & Style::Encircled       ) != Style::None           { style.push_str("52;") }
+            if ( word.flags & Style::Overlined       ) != Style::None           { style.push_str("53;") }
             let fgColour
             = match word.fgColour
               {
@@ -880,10 +952,10 @@ impl TTYState
     focus:                              Option<&Arc<Mutex<Box<FrameID>>>>,
     display:                            DisplayID,
     events:                             Option<&EventSender>,
-    mapOfFrames:                        Option<&Arc<Mutex<Box<[FrameID]>>>>,
+    mapOfFrames:                        Option<&Arc<Mutex<Option<Box<[FrameID]>>>>>,
     width:                              usize,
     height:                             usize,
-    mouseState:                         &mut Flags,
+    mouseState:                         &mut MouseButton,
     listOfParameters:                   &mut Vec<usize>,
     currentParameter:                   &mut usize,
     parameterPrefix:                    &mut TTYPrefix,
@@ -912,9 +984,9 @@ impl TTYState
               }
             }
             let newEvent: Event
-            = event::Event::new
+            = Event::new
               (
-                EventType::Char(byte as char),
+                EventType::Character(byte as char),
                 display,                frame,
                 0,                      0,
                 *mouseState,
@@ -959,7 +1031,7 @@ impl TTYState
               }
             }
             let newEvent: Event
-            = event::Event::new
+            = Event::new
               (
                 EventType::Escape,
                 display,                frame,
@@ -972,7 +1044,7 @@ impl TTYState
             }
             else
             {
-              returnValue                =                                       Some(newEvent);
+              returnValue               =                                       Some(newEvent);
             }
             if c != 0x1b
             {
@@ -1024,16 +1096,23 @@ impl TTYState
           {
             listOfParameters.push(*currentParameter);
             let frame: FrameID
-            = if let Some(mapOfFrames) = mapOfFrames
+            = if let Some(mapOfFrames) = mapOfFrames                            //did I get a reference to a map of frames?
               {
-                if let Ok(mapOfFrames) = mapOfFrames.lock()
+                if let Ok(mapOfFrames) = mapOfFrames.lock()                     //can I access it?
                 {
-                  let x                 =                                       listOfParameters[1] - 1;
-                  let y                 =                                       listOfParameters[2] - 1;
-                  if ( x < width  )
-                  && ( y < height )
+                  if let Some(ref mapOfFrames) = *mapOfFrames                   //is it not empty?
                   {
-                    mapOfFrames[ y * width + x ]
+                    let x               =                                       listOfParameters[1] - 1;
+                    let y               =                                       listOfParameters[2] - 1;
+                    if ( x < width  )
+                    && ( y < height )
+                    {
+                      mapOfFrames[ y * width + x ]
+                    }
+                    else
+                    {
+                      0
+                    }
                   }
                   else
                   {
@@ -1055,17 +1134,17 @@ impl TTYState
             {
               0                                                                 =>
               {
-                *mouseState             |=                                      MouseButton_LeftDown;
+                *mouseState             |=                                      MouseButton::LeftDown;
                 theEvent                =                                       Some(EventType::MouseLeftButtonPressed);
               },
               1                                                                 =>
               {
-                *mouseState             |=                                      MouseButton_MiddleDown;
+                *mouseState             |=                                      MouseButton::MiddleDown;
                 theEvent                =                                       Some(EventType::MouseMiddleButtonPressed);
               },
               2                                                                 =>
               {
-                *mouseState             |=                                      MouseButton_RightDown;
+                *mouseState             |=                                      MouseButton::RightDown;
                 theEvent                =                                       Some(EventType::MouseRightButtonPressed);
               },
               32                                                                =>
@@ -1098,7 +1177,7 @@ impl TTYState
             if let Some(theEvent) = theEvent
             {
               let newEvent: Event
-              = event::Event::new
+              = Event::new
                 (
                   theEvent,
                   display,              frame,
@@ -1121,16 +1200,23 @@ impl TTYState
           {
             listOfParameters.push(*currentParameter);
             let frame: FrameID
-            = if let Some(mapOfFrames) = mapOfFrames
+            = if let Some(mapOfFrames) = mapOfFrames                            //did I get a reference to a map of frames?
               {
-                if let Ok(mapOfFrames) = mapOfFrames.lock()
+                if let Ok(mapOfFrames) = mapOfFrames.lock()                     //can I access it?
                 {
-                  let x                 =                                       listOfParameters[1] - 1;
-                  let y                 =                                       listOfParameters[2] - 1;
-                  if ( x < width  )
-                  && ( y < height )
+                  if let Some(ref mapOfFrames) = *mapOfFrames                   //is it not empty?
                   {
-                    mapOfFrames[ y * width + x ]
+                    let x               =                                       listOfParameters[1] - 1;
+                    let y               =                                       listOfParameters[2] - 1;
+                    if ( x < width  )
+                    && ( y < height )
+                    {
+                      mapOfFrames[ y * width + x ]
+                    }
+                    else
+                    {
+                      0
+                    }
                   }
                   else
                   {
@@ -1152,17 +1238,17 @@ impl TTYState
             {
               0                                                                 =>
               {
-                *mouseState             &=                                      !MouseButton_LeftDown;
+                *mouseState             &=                                      !MouseButton::LeftDown;
                 theEvent                =                                       Some(EventType::MouseLeftButtonReleased);
               },
               1                                                                 =>
               {
-                *mouseState             &=                                      !MouseButton_MiddleDown;
+                *mouseState             &=                                      !MouseButton::MiddleDown;
                 theEvent                =                                       Some(EventType::MouseMiddleButtonReleased);
               },
               2                                                                 =>
               {
-                *mouseState             &=                                      !MouseButton_RightDown;
+                *mouseState             &=                                      !MouseButton::RightDown;
                 theEvent                =                                       Some(EventType::MouseRightButtonReleased);
               },
               _                                                                 => { /* invalid */ },
@@ -1171,7 +1257,7 @@ impl TTYState
             if let Some(theEvent) = theEvent
             {
               let newEvent: Event
-              = event::Event::new
+              = Event::new
                 (
                   theEvent,
                   display,              frame,
@@ -1196,7 +1282,7 @@ impl TTYState
             //println!("size: {}x{}", listOfParameters[1], listOfParameters[0]);
             *self                       =                                        TTYState::ExpectByte;
             let newEvent: Event
-            = event::Event::new
+            = Event::new
               (
                 EventType::CursorPosition,
                 display,              0,

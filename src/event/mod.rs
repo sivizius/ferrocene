@@ -1,4 +1,15 @@
-use crate::*;
+use crate::
+{
+  Flags,
+  display::
+  {
+    DisplayID,
+  },
+  frame::
+  {
+    FrameID,
+  },
+};
 
 use std::
 {
@@ -16,14 +27,23 @@ use std::
 pub type EventReceiver                  =                                       Receiver<Event>;
 pub type EventSender                    =                                       Sender<Event>;
 
-pub const MouseButton_None:       Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0000;
-pub const MouseButton_LeftDown:   Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0001;
-pub const MouseButton_MiddleDown: Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0010;
-pub const MouseButton_RightDown:  Flags =                                       0b0000_0000_0000_0000_0000_0000_0000_0100;
+bitflags!
+{
+  pub struct MouseButton: Flags
+  {
+    const None                          =                                       0b0000_0000_0000_0000_0000_0000_0000_0000;
+    const LeftDown                      =                                       0b0000_0000_0000_0000_0000_0000_0000_0001;
+    const MiddleDown                    =                                       0b0000_0000_0000_0000_0000_0000_0000_0010;
+    const RightDown                     =                                       0b0000_0000_0000_0000_0000_0000_0000_0100;
+  }
+}
+
 pub enum EventType
 {
   Error(&'static str),
-  Char(char),
+  Warning(&'static str),
+
+  Character(char),
   Escape,
   Backspace,
   Return,
@@ -64,7 +84,7 @@ pub struct Event
   pub frame:                            FrameID,
   pub cursorX:                          usize,
   pub cursorY:                          usize,
-  pub mouse:                            Flags,
+  pub mouse:                            MouseButton,
 }
 
 impl Event
@@ -76,7 +96,7 @@ impl Event
     frame:                              FrameID,
     cursorX:                            usize,
     cursorY:                            usize,
-    mouse:                              Flags,
+    mouse:                              MouseButton,
   ) -> Self
   {
     Self
