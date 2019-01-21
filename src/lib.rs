@@ -1,56 +1,30 @@
+#![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
 pub mod display;
 pub mod frame;
 pub mod event;
 
-pub use crate::yatui::display::*;
-pub use crate::yatui::frame::*;
-pub use crate::yatui::event::*;
+pub use crate::
+{
+  display::*,
+  frame::*,
+  event::*,
+};
+
+#[cfg(feature = "display-tty")]
+use crate::display::tty::*;
 
 use std::
 {
-  io::
-  {
-    self,
-    Stdin,
-    Stdout,
-    Write,
-  },
-  mem,
-  os::
-  {
-    unix::
-    {
-      io::
-      {
-        RawFd,
-      },
-    },
-  },
-  rc::
-  {
-    Rc,
-    Weak,
-  },
-  str::
-  {
-  },
-  thread,
   time::
   {
-    Duration,
     SystemTime
   },
 };
 
-use unicode_segmentation::
-{
-  Graphemes,
-  UnicodeSegmentation,
-};
-
 type Flags                              =                                       u32;
 
-pub struct Yatui
+pub struct Ferrocene
 {
   pub listOfDisplays:                   Vec<Option<Display>>,
   pub listOfFrames:                     Vec<Option<Frame>>,
@@ -58,7 +32,7 @@ pub struct Yatui
   pub sendChannel:                      EventSender,
 }
 
-impl Yatui
+impl Ferrocene
 {
   pub fn new
   (
@@ -96,6 +70,7 @@ impl Yatui
     self.listOfFrames.len()
   }
 
+  #[cfg(feature = "display-tty")]
   pub fn addTTYDisplay
   (
     &mut self,
@@ -352,25 +327,11 @@ impl Yatui
             refDisplay.offsX,           refDisplay.offsY,
             refDisplay.sizeX,           refDisplay.sizeY,
           );
+          #[cfg(any(feature = "display-tty"))]
           match &mut refDisplay.display
           {
-            DisplayType::TTY(ref mut output) =>
-            {
-              let error                 =                                       output.output.flush();
-              if !error.is_ok()
-              {
-                events.send
-                (
-                  event::Event::new
-                  (
-                    EventType::Error("cannot flush to tty"),
-                    refDisplay.this,    0,
-                    0,                  0,
-                    0
-                  )
-                ).unwrap();
-              }
-            }
+            #[cfg(feature = "display-tty")]
+            DisplayType::TTY(ref mut output)  =>                                output.flush( events, refDisplay.this ),
           }
           refDisplay.lastRefresh        =                                       SystemTime::now();
         }

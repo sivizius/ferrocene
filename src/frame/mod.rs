@@ -1,6 +1,4 @@
-use crate::yatui::*;
-use crate::yatui::display::*;
-use crate::yatui::event::*;
+use crate::*;
 
 pub type FrameID                        =                                       usize;
 type GridBorder                         =                                       usize;

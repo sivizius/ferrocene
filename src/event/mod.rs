@@ -1,6 +1,4 @@
-use crate::yatui::*;
-use crate::yatui::frame::*;
-use crate::yatui::display::*;
+use crate::*;
 
 use std::
 {
@@ -12,9 +10,7 @@ use std::
       Receiver,
       Sender,
     },
-    RwLock,
   },
-  thread,
 };
 
 pub type EventReceiver                  =                                       Receiver<Event>;
