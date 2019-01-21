@@ -1,5 +1,5 @@
-pub mod displays;
-pub mod frames;
+pub mod display;
+pub mod frame;
 pub mod event;
 
 pub use crate::yatui::display::*;
@@ -104,8 +104,8 @@ impl Yatui
     offsY:                              isize,
     cursorX:                            usize,
     cursorY:                            usize,
-    input:                              Box<displays::ReadableFd>,
-    output:                             Box<displays::WriteableFd>,
+    input:                              Box<display::ReadableFd>,
+    output:                             Box<display::WriteableFd>,
     refreshRate:                        u64,
   ) -> ( usize, usize, DisplayID )
   {

@@ -38,7 +38,7 @@ fn main()
   let ( width, height, myTerminal )
   = myTUI.addTTYDisplay
     (
-      yatui::displays::Display_None,
+      yatui::display::Display_None,
       0,                                0,
       0,                                0,
       Box::new(io::stdin()),            Box::new(io::stdout()),
@@ -116,10 +116,10 @@ fn main()
   let theScreen
   = myTUI.addParentFrame
     (
-      yatui::frames::Tiling::Grid,
+      yatui::frame::Tiling::Grid,
       vec!
       (
-        yatui::frames::Frame::newInstance
+        yatui::frame::Frame::newInstance
         (
           theEditor,
           0,                            0,
@@ -129,7 +129,7 @@ fn main()
           0,                            0,
           1,                            1,
         ),
-        yatui::frames::Frame::newInstance
+        yatui::frame::Frame::newInstance
         (
           theStatusBar,
           0,                            height as isize - 1,

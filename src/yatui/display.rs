@@ -975,7 +975,6 @@ impl TTYDisplay
       }
       else
       {
-        println!("pixel: {}x{}", winsize.ws_xpixel, winsize.ws_ypixel);
         Ok
         (
           (
@@ -1128,8 +1127,9 @@ impl TTYState
             listOfParameters.push(*currentParameter);
             *currentParameter           =                                       0;
           },
-          0x4d if listOfParameters.len() == 3                                   =>
+          0x4d if listOfParameters.len() == 2                                   =>
           {
+            listOfParameters.push(*currentParameter);
             let frame: FrameID
             = if let Some(mapOfFrames) = mapOfFrames
               {
@@ -1213,8 +1213,9 @@ impl TTYState
               }
             }
           },
-          0x6d if listOfParameters.len() == 3                                  =>
+          0x6d if listOfParameters.len() == 2                                  =>
           {
+            listOfParameters.push(*currentParameter);
             let frame: FrameID
             = if let Some(mapOfFrames) = mapOfFrames
               {
@@ -1274,14 +1275,33 @@ impl TTYState
               }
             }
           },
-          0x52 if listOfParameters.len() == 2                                   =>
+          0x52 if listOfParameters.len() == 1                                   =>
           {
-            println!("size: {}x{}", listOfParameters[2], listOfParameters[1]);
+            listOfParameters.push(*currentParameter);
+            println!("size: {}x{}", listOfParameters[1], listOfParameters[0]);
+            *self                       =                                        TTYState::ExpectByte;
+            let newEvent: Event
+            = event::Event::new
+              (
+                EventType::CursorPosition,
+                display,              0,
+                listOfParameters[1] - 0,
+                listOfParameters[0] - 0,
+                *mouseState,
+              );
+            if let Some(events) = events
+            {
+              events.send(newEvent).unwrap();
+            }
+            else
+            {
+              returnValue               =                                       Some(newEvent);
+            }
           },
           r @ _                                                                 =>
           {
-           println!("cannot parse ({:?}) {}", listOfParameters, r as char);
-           *self                       =                                        TTYState::ExpectByte;
+           println!("cannot parse {:?} {}", listOfParameters, r as char);
+           *self                        =                                       TTYState::ExpectByte;
           },
         }
       },
